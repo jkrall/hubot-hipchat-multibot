@@ -1,0 +1,30 @@
+{
+  "name": "hubot-hipchat-multibot",
+  "version": "0.0.1",
+  "author": {
+    "name": "Joshua Krall",
+    "email": "joshuakrall@pobox.com"
+  },
+  "description": "A multi-room Hipchat adapter for Hubot",
+  "keywords": [
+    "hipchat",
+    "hubot",
+    "chat",
+    "bot"
+  ],
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://github.com/hipchat/hubot-hipchat-multibot/raw/master/LICENSE"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/jkrall/hubot-hipchat-multibot.git"
+  },
+  "license": "MIT",
+  "main": "./src/proxy/parent",
+  "dependencies": {
+    "underscore": "~1.4.4"
+  }
+}
