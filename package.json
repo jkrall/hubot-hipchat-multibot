@@ -25,6 +25,7 @@
   "license": "MIT",
   "main": "./src/multibot_adapter",
   "dependencies": {
+    "log": "1.4.0",
     "underscore": "~1.4.4"
   },
   "devDependencies": {
