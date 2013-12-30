@@ -126,7 +126,7 @@ class HipChatProxy
               room: room_jid
               name: currentName
 
-      @connector.onLeave (user_jid, room_jid) ->
+      @connector.onLeave (user_jid, room_jid) =>
         @children[room_jid].send JSON.stringify
           command: 'stanza'
           arguments:

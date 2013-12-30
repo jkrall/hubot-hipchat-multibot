@@ -147,8 +147,7 @@ module.exports = class IpcConnector extends EventEmitter
   # Emitted whenever the connector connects to the server.
   #
   # - `callback`: Function to be triggered: `function ()`
-  onConnect: (callback) =>
-    @on "connect", callback
+  onConnect: (callback) => @on "connect", callback
 
   # Emitted whenever the connector disconnects from the server.
   #
