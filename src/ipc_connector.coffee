@@ -9,40 +9,20 @@ module.exports = class IpcConnector extends EventEmitter
   #
   # `options` object:
   #
-  #   - `jid`: Connector's Jabber ID
-  #   - `password`: Connector's HipChat password
-  #   - `host`: Force host to make XMPP connection to. Will look up DNS SRV
-  #        record on JID's host otherwise.
-  #   - `caps_ver`: Name and version of connector. Override if Connector is being used
-  #        to power another connector framework (e.g. Hubot).
+  #   - `rooms`: list of rooms we're connected to
   #   - `logger`: A logger instance.
   constructor: (options={}) ->
     @once "connect", (->) # listener bug in Node 0.4.2
-    @setMaxListeners 0
 
     @rooms = options.rooms
-    @name = null
-    @plugins = {}
-    @iq_count = 1 # current IQ id to use
     @logger = options.logger
-
-    # add a JID resource if none was provided
-    jid = new xmpp.JID options.jid
-    jid.resource = "hubot-hipchat" if not jid.resource
-
-    @jid = jid.toString()
-    @password = options.password
-    @host = options.host
-    @caps_ver = options.caps_ver or "hubot-hipchat:#{pkg.version}"
-
-    # Multi-User-Conference (rooms) service host. Use when directing stanzas
-    # to the MUC service.
-    @mucHost = "conf.#{if @host then @host else 'hipchat.com'}"
 
     @onError @disconnect
 
-  # Connects the connector to HipChat and sets the XMPP event listeners.
+  # Connects the connector to the parent proxy
   connect: ->
+    @logger.info "Connecting to the parent proxy..."
+
     # debug network traffic
     do =>
       process.on "message", (buffer) =>
@@ -56,6 +36,7 @@ module.exports = class IpcConnector extends EventEmitter
   # Disconnect the connector from HipChat, remove the anti-idle and emit the
   # `disconnect` event.
   disconnect: =>
+    @logger.info "Disconnecting from the parent proxy..."
     @emit "disconnect"
 
   # Fetches our profile info
