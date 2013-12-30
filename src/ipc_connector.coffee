@@ -19,19 +19,21 @@ module.exports = class IpcConnector extends EventEmitter
 
     @onError @disconnect
 
+    @setupMessageHandlers()
+
   # Connects the connector to the parent proxy
   connect: ->
     @logger.info "Connecting to the parent proxy..."
 
     # debug network traffic
-    do =>
-      process.on "message", (buffer) =>
-        @logger.debug "  IN > %s", buffer.toString()
-
-      _send = process.send
-      process.send = (stanza) =>
-        @logger.debug " OUT > %s", stanza
-        _send.call process, stanza
+    #  do =>
+    #    process.on "message", (buffer) =>
+    #      console.log "  IN > %s", buffer.toString()
+    #
+    #    _send = process.send
+    #    process.send = (stanza) =>
+    #      console.log " OUT > %s", stanza
+    #      _send.call process, stanza
 
   # Disconnect the connector from HipChat, remove the anti-idle and emit the
   # `disconnect` event.
@@ -74,6 +76,7 @@ module.exports = class IpcConnector extends EventEmitter
   #   - `stanza`: Full response stanza, an `xmpp.Element`
   getRoster: (callback) ->
     process.once 'message', (response) ->
+      response = JSON.parse response
       items = usersFromStanza response
       callback null, items, response
 
@@ -88,7 +91,11 @@ module.exports = class IpcConnector extends EventEmitter
   #     - `dnd` (Do not disturb)
   #  - `status`: Status message to display
   setAvailability: (availability, status) ->
-    console.log 'Noop -- IpcConnector does not support availability updates'
+    process.send JSON.stringify
+      command: 'setAvailability'
+      arguments:
+        availability: availability
+        status: status
 
   # Join the specified room.
   #
@@ -140,12 +147,13 @@ module.exports = class IpcConnector extends EventEmitter
   # Emitted whenever the connector connects to the server.
   #
   # - `callback`: Function to be triggered: `function ()`
-  onConnect: (callback) -> @on "connect", callback
+  onConnect: (callback) =>
+    @on "connect", callback
 
   # Emitted whenever the connector disconnects from the server.
   #
   # - `callback`: Function to be triggered: `function ()`
-  onDisconnect: (callback) -> @on "disconnect", callback
+  onDisconnect: (callback) => @on "disconnect", callback
 
   # Emitted whenever the connector is invited to a room.
   #
@@ -156,24 +164,7 @@ module.exports = class IpcConnector extends EventEmitter
   #   - `roomJid`: JID of the room being invited to.
   #   - `fromJid`: JID of the person who sent the invite.
   #   - `reason`: Reason for invite (text)
-  onInvite: (callback) -> @on "invite", callback
-
-  # Makes an onMessage impl for the named message event
-  onMessageFor = (name) ->
-    (condition, callback) ->
-      if not callback
-        callback = condition
-        condition = null
-      @on name, ->
-        message = arguments[arguments.length - 1]
-        if not condition or message is condition
-          callback.apply @, arguments
-        else if isRegExp condition
-          match = message.match condition
-          return if not match
-          args = [].slice.call arguments
-          args.push match
-          callback.apply @, args
+  onInvite: (callback) => @on "invite", callback
 
   # Emitted whenever a message is sent to a channel the connector is in.
   #
@@ -187,7 +178,7 @@ module.exports = class IpcConnector extends EventEmitter
   #   - `from`: The name of the person who said the message.
   #   - `message`: The message
   #   - `matches`: The matches returned by the condition when it is a RegExp
-  onMessage: onMessageFor "message"
+  onMessage: (callback) => @on "message", callback
 
   # Emitted whenever a message is sent privately to the connector.
   #
@@ -197,18 +188,18 @@ module.exports = class IpcConnector extends EventEmitter
   #
   # - `condition`: String or RegExp the message must match.
   # - `callback`: Function to be triggered: `function (fromJid, message)`
-  onPrivateMessage: onMessageFor "privateMessage"
+  onPrivateMessage: (callback) => @on "privateMessage", callback
 
-  onEnter: (callback) -> @on "enter", callback
+  onEnter: (callback) => @on "enter", callback
 
-  onLeave: (callback) -> @on "leave", callback
+  onLeave: (callback) => @on "leave", callback
 
-  onRosterChange: (callback) -> @on "rosterChange", callback
+  onRosterChange: (callback) => @on "rosterChange", callback
 
   # Emitted whenever the connector pings the server (roughly every 30 seconds).
   #
   # - `callback`: Function to be triggered: `function ()`
-  onPing: (callback) -> @on "ping", callback
+  onPing: (callback) => @on "ping", callback
 
   # Emitted whenever an XMPP stream error occurs. The `disconnect` event will
   # always be emitted afterwards.
@@ -220,124 +211,145 @@ module.exports = class IpcConnector extends EventEmitter
   #   - `condition`: XMPP stream error condition (string)
   #   - `text`: Human-readable error message (string)
   #   - `stanza`: The raw `xmpp.Element` error stanza
-  onError: (callback) -> @on "error", callback
+  onError: (callback) => @on "error", callback
+
+  setupMessageHandlers: =>
+    process.on 'message', (data) =>
+      packet = JSON.parse data
+
+      if packet.command == 'connect'
+        @mention_name = packet.arguments.name
+        @emit 'connect'
+
+      if packet.command == 'disconnect'
+        @emit 'disconnect'
+
+      if packet.command == 'online'
+        @setAvailability "chat"
+
+        # Load our profile to get name
+        @getProfile (err, data) =>
+          if err
+            # This isn't technically a stream error which is what the `error`
+            # event usually represents, but we want to treat a profile fetch
+            # error as a fatal error and disconnect the connector.
+            @emit "error", null, "Unable to get profile info: #{err}", null
+          else
+            # Now that we have our name we can let rooms be joined
+            @name = data.fn
+            # This is the name used to @mention us
+            @mention_name = data.nickname
+            @emit "connect"
 
 
-process.on 'message', (data) ->
- packet = JSON.parse data
+      if packet.command == 'stanza'
+        stanza = packet.arguments
 
- if packet.command == 'stanza'
-    stanza = packet.arguments
-    
-    if stanza.type == 'message'
-      message = stanza.content
+        if stanza.type == 'message'
+          message = stanza.content
 
-      switch message.type
+          switch message.type
+
+          # {
+          #   command: 'stanza',
+          #   arguments: {
+          #     type: 'message',
+          #     content: {
+          #       type: 'groupchat',
+          #       body: '...', fromChannel: '...', fromNick: '...'
+          #     }
+          #   }
+          # }
+            when 'groupchat'
+              return if not message.body
+              return if message.delay
+              fromChannel = message.fromChannel
+              fromNick = message.fromNick
+              # Ignore our own messages
+              return if fromNick is @name
+              @emit "message", fromChannel, fromNick, message.body
+
+          # {
+          #   command: 'stanza',
+          #   arguments: {
+          #     type: 'message',
+          #     content: {
+          #       type: 'chat',
+          #       body: '...', fromJid: '...'
+          #     }
+          #   }
+          # }
+            when 'chat'
+              return if not message.body
+              @emit "privateMessage", message.fromJid, message.body
+
+          # {
+          #   command: 'stanza',
+          #   arguments: {
+          #     type: 'message',
+          #     content: {
+          #       invite: {
+          #         reason: '...',
+          #         from: '...'
+          #       },
+          #       from: '...'
+          #     }
+          #   }
+          # }
+            else
+              return if not message.invite
+              @emit "invite", message.from, message.invite.from, message.invite.reason
+
+        if stanza.type == 'iq'
+          iq = stanza.content
+          eventId = "iq:#{iq.id}"
+
+          switch iq.type
+
+          # {
+          #   command: 'stanza',
+          #   arguments: {
+          #     type: 'iq',
+          #     content: {
+          #       id: '...',
+          #       ...
+          #     }
+          #   }
+          # }
+            when "result"
+              @emit eventId, null, stanza
+
+            when "set"
+              if iq.query.xmlns is "jabber:iq:roster"
+                users = usersFromStanza stanza
+                @emit "rosterChange", users, stanza
+
+            else
+              condition = "unknown"
+              error_elem = iq.error
+              condition error_elem[0].name if error_elem
+              @emit eventId, condition, stanza
+
 
         # {
         #   command: 'stanza',
         #   arguments: {
-        #     type: 'message',
+        #     type: 'presence',
         #     content: {
-        #       type: 'groupchat',
-        #       body: '...', fromChannel: '...', fromNick: '...'
+        #       type: '...',
+        #       room: '...',
+        #       from: '...',
+        #       name: '...',
         #     }
         #   }
         # }
-        when 'groupchat'
-          return if not message.body
-          return if message.delay
-          fromChannel = message.fromChannel
-          fromNick = message.fromNick
-          # Ignore our own messages
-          return if fromNick is @name
-          @emit "message", fromChannel, fromNick, stanza.body
-
-        # {
-        #   command: 'stanza',
-        #   arguments: {
-        #     type: 'message',
-        #     content: {
-        #       type: 'chat',
-        #       body: '...', fromJid: '...'
-        #     }
-        #   }
-        # }
-        when 'chat'
-          return if not message.body
-          @emit "privateMessage", message.fromJid, message.body
-
-        # {
-        #   command: 'stanza',
-        #   arguments: {
-        #     type: 'message',
-        #     content: {
-        #       invite: {
-        #         reason: '...',
-        #         from: '...'
-        #       }, 
-        #       from: '...'
-        #     }
-        #   }
-        # }
-        else
-          return if not message.invite
-          @emit "invite", message.from, message.invite.from, message.invite.reason
-    
-    if stanza.type == 'iq'
-      iq = stanza.content
-      eventId = "iq:#{iq.id}"
-      
-      switch iq.type
-
-        # {
-        #   command: 'stanza',
-        #   arguments: {
-        #     type: 'iq',
-        #     content: {
-        #       id: '...',
-        #       ...
-        #     }
-        #   }
-        # }
-        when "result"
-          @emit eventId, null, stanza
-
-        when "set"
-          if iq.query.xmlns is "jabber:iq:roster"
-            users = usersFromStanza stanza
-            @emit "rosterChange", users, stanza
-
-        else
-          condition = "unknown"
-          error_elem = iq.error
-          condition error_elem[0].name if error_elem
-          @emit eventId, condition, stanza
-
-
-    # {
-    #   command: 'stanza',
-    #   arguments: {
-    #     type: 'presence',
-    #     content: {
-    #       room: '...',
-    #       from: '.../...',
-    #     }
-    #   }
-    # }
-    if stanza.type == 'presence'
-      presence = stanza.content
-      return if not presence.room
-      name = presence.from.split("/")[1] || ''
-      type = presence.type
-      entity = presence.item
-      return if not entity
-      from = entity.jid
-      return if not from
-      if type is "unavailable"
-        @emit "leave", from, room, name
-      else if type is "available" and entity.role is "participant"
-        @emit "enter", from, room, name
+        if stanza.type == 'presence'
+          presence = stanza.content
+          return if not presence.room or presence.type
+          if presence.type is "unavailable"
+            @emit "leave", presence.from, presence.room, presence.name
+          else
+            @emit "enter", presence.from, presence.room, presence.name
 
 
 usersFromStanza = (stanza) ->
@@ -346,6 +358,3 @@ usersFromStanza = (stanza) ->
     jid: el.jid
     name: el.name
     mention_name: el.mention_name
-
-
-
