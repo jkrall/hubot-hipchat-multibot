@@ -1,6 +1,5 @@
 {EventEmitter} = require "events"
 fs = require "fs"
-util = require "./util"
 {bind, isString, isRegExp} = require "underscore"
 
 # ##Public Connector API

@@ -23,7 +23,7 @@
     "url": "http://github.com/jkrall/hubot-hipchat-multibot.git"
   },
   "license": "MIT",
-  "main": "./src/proxy/parent",
+  "main": "./src/multibot_adapter",
   "dependencies": {
     "underscore": "~1.4.4"
   }
