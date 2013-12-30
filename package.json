@@ -26,5 +26,8 @@
   "main": "./src/multibot_adapter",
   "dependencies": {
     "underscore": "~1.4.4"
+  },
+  "devDependencies": {
+    "parent-require": "*"
   }
 }
