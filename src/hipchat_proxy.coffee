@@ -4,6 +4,7 @@ Log = require 'log'
 {_} = require "underscore"
 {spawn} = require('child_process')
 {format_child_data} = require('./utils')
+fs = require 'fs'
 
 # Require hubot-hipchat connector
 connector_path = 'hubot-hipchat/src/connector'
@@ -16,12 +17,23 @@ catch
 class HipChatProxy
   DEFAULT_HUBOT_COMMAND = 'node_modules/.bin/hubot'
   DEFAULT_HUBOT_ARGS = ['-a', 'hipchat-multibot']
+  DEFAULT_HUBOT_CUSTOM_PATH = process.cwd() + '/custom'
 
   children: {}
 
   constructor: (options={}) ->
     @logger = options.logger || new Log(process.env.HUBOT_LOG_LEVEL or 'debug')
     @rooms = options.rooms?.split(/[\s,]/) || []
+
+  custom_room_env: (room) ->
+    path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/.env"
+    custom_env = if fs.fstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+
+    room = room.replace /@.*$/, ''
+    path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/#{room}/.env"
+    room_env = if fs.fstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+
+    _.extend(room_env, custom_env)
 
   spawn_room: (room) ->
     @logger.info "Spawning Room: #{room} ..."
@@ -31,6 +43,7 @@ class HipChatProxy
     child_env = _.clone process.env
     child_env.HUBOT_HIPCHAT_ROOMS = room
     child_env.HUBOT_PARENT_PID = process.pid
+    _.extend child_env, @custom_room_env(room)
 
     @children[room] = spawn child_cmd, child_args,
       cwd: process.cwd()
