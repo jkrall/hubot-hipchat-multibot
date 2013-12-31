@@ -29,7 +29,7 @@ class HipChatProxy
     parse_file = (path) ->
       try
         JSON.parse fs.readFileSync path
-      catch
+      catch err
         {}
 
     custom_env = parse_file "#{DEFAULT_HUBOT_CUSTOM_PATH}/.env"
@@ -143,7 +143,7 @@ class HipChatProxy
               room: room_jid
               name: currentName
 
-      @connector.onLeave (user_jid, room_jid) =>
+      @connector.onLeave (user_jid, room_jid, currentName) =>
         @children[room_jid].send JSON.stringify
           command: 'stanza'
           arguments:
