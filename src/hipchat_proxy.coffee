@@ -26,12 +26,16 @@ class HipChatProxy
     @rooms = options.rooms?.split(/[\s,]/) || []
 
   custom_room_env: (room) ->
-    path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/.env"
-    custom_env = if fs.lstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+    parse_file = (path) ->
+      try
+        JSON.parse fs.readFileSync path
+      catch
+        {}
+
+    custom_env = parse_file "#{DEFAULT_HUBOT_CUSTOM_PATH}/.env"
 
     room = room.replace /@.*$/, ''
-    path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/#{room}/.env"
-    room_env = if fs.lstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+    room_env = parse_file "#{DEFAULT_HUBOT_CUSTOM_PATH}/#{room}/.env"
 
     _.extend(room_env, custom_env)
 
