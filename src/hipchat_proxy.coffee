@@ -160,14 +160,13 @@ class HipChatProxy
 
     @connector.connect()
 
-  setupExitHandlers:
+  setupExitHandlers: ->
     process.on 'exit', ->
-      for _, child of @children
-        child.kill()
+      child.kill() for _, child of @children
+
     process.on 'uncaughtException', (err) ->
       console.log err
-      for _, child of @children
-        child.kill()
+      child.kill() for _, child of @children
 
   start: ->
     @connect()
