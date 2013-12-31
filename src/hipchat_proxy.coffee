@@ -181,9 +181,13 @@ class HipChatProxy
     @connector.connect()
 
   setupExitHandlers: ->
-    process.on 'uncaughtException', (err) ->
-      child.kill() for _, child of @children
+    killWorkers = => process.kill(child) for _, child of @children
+    process.on "uncaughtException", (err) ->
+      killWorkers
       throw err
+    process.on "SIGINT", killWorkers
+    process.on "SIGTERM", killWorkers
+    process.on "SIGQUIT", killWorkers
 
   start: ->
     @connect()
