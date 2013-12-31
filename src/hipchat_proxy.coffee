@@ -27,11 +27,11 @@ class HipChatProxy
 
   custom_room_env: (room) ->
     path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/.env"
-    custom_env = if fs.fstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+    custom_env = if fs.lstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
 
     room = room.replace /@.*$/, ''
     path = "#{DEFAULT_HUBOT_CUSTOM_PATH}/#{room}/.env"
-    room_env = if fs.fstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
+    room_env = if fs.lstatSync(path).isFile() then JSON.parse fs.readFileSync(path) else {}
 
     _.extend(room_env, custom_env)
 
