@@ -18,8 +18,10 @@ class HipChatProxy
   DEFAULT_HUBOT_COMMAND = 'node_modules/.bin/hubot'
   DEFAULT_HUBOT_ARGS = ['-a', 'hipchat-multibot']
   DEFAULT_HUBOT_CUSTOM_PATH = process.cwd() + '/custom'
+  DEFAULT_HUBOT_START_PORT = 8080
 
   children: {}
+  current_port: DEFAULT_HUBOT_START_PORT
 
   constructor: (options={}) ->
     @logger = options.logger || new Log(process.env.HUBOT_LOG_LEVEL or 'debug')
@@ -47,6 +49,7 @@ class HipChatProxy
     child_env = _.clone process.env
     child_env.HUBOT_HIPCHAT_ROOMS = room
     child_env.HUBOT_PARENT_PID = process.pid
+    child_env.PORT = (@current_port = @current_port + 1)
     _.extend child_env, @custom_room_env(room)
 
     @children[room] = spawn child_cmd, child_args,
