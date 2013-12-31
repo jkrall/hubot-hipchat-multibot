@@ -182,8 +182,8 @@ class HipChatProxy
       child.kill() for _, child of @children
 
     process.on 'uncaughtException', (err) ->
-      console.log err
       child.kill() for _, child of @children
+      throw err
 
   start: ->
     @connect()
