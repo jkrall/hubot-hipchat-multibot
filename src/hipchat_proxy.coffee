@@ -160,21 +160,23 @@ class HipChatProxy
 
     @connector.connect()
 
+  setupExitHandlers:
+    process.on 'exit', ->
+      for _, child of @children
+        child.kill()
+    process.on 'uncaughtException', (err) ->
+      console.log err
+      for _, child of @children
+        child.kill()
 
   start: ->
     @connect()
     @spawnRooms()
+    @setupExitHandlers()
+
 
 proxy = new HipChatProxy
   rooms: process.env.HUBOT_HIPCHAT_ROOMS
 
 proxy.start()
 
-
-#setTimeout ->
-#  child.send('hello from your parent')
-#, 2000
-#
-#setTimeout ->
-#  child.send('hello from your parent')
-#, 4000
